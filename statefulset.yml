@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bloodapp-statefulset
+spec:
+  serviceName: "mysql"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db-bloodapp
+  template:
+    metadata:
+      labels:
+        app: db-bloodapp
+    spec:
+      containers:
+      - name: mysqldb
+        image: manisha03b/bloodbankapp:dbimage
+        ports:
+        - containerPort: 3306
+        envFrom:
+        - configMapRef:
+            name: bloodapp-config
+        - secretRef:
+            name: bloodapp-secret
+
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+        volumeMounts:
+        - name: mysql-persistent-storage
+          mountPath: /usr/share/nginx/html
+
+  volumeClaimTemplates:
+  - metadata:
+      name: mysql-persistent-storage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi

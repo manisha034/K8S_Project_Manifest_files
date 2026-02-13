@@ -1,0 +1,59 @@
+pipeline {
+    agent any
+    environment {
+        scannerHome = tool 'sonar'
+    }
+    stages {
+        stage ("Code") {
+            steps {
+                git "https://github.com/manisha034/blood-bank-application.git"
+            }
+        }
+        stage ("CQA") {
+            steps {
+                withSonarQubeEnv('sonar') {
+                    sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=MyProject"
+                }
+            }
+        }
+        stage ("QualityGates") {
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-cred'
+            }
+        }
+        stage ("Images") {
+            steps {
+                sh 'docker build -t dbimage database'
+                sh 'docker build -t appimage .'
+            }
+        }
+        stage ("ImageScan") {
+            steps {
+                sh 'trivy image dbimage'
+                sh 'trivy image appimage'
+            }
+        }
+        stage ("Tag") {
+            steps {
+                sh 'docker tag dbimage manisha03b/bloodbankapp:dbimage'
+                sh 'docker tag appimage manisha03b/bloodbankapp:appimage'
+            }
+        }
+        stage ("Push") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker-cred') {
+                        sh 'docker push manisha03b/bloodbankapp:dbimage'
+                        sh 'docker push manisha03b/bloodbankapp:appimage'
+                    }
+                }
+            }
+        }
+        stage ("Deploy-containers") {
+            steps {
+                sh 'docker run -d --name mysqldb -p 3306:3306 manisha03b/bloodbankapp:dbimage'
+                sh 'docker run -d --name appcont -p 1111:80 --link mysqldb:mysqlcon manisha03b/bloodbankapp:appimage'
+            }
+        }
+    }
+}
